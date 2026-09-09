@@ -25,48 +25,72 @@
 
 <script>
 
-let cam, prevFrame, diffImg, haloLayer;
-
-/*
-  SONIC TRACKER MOTION SETTINGS
-
-  motionThreshold:
-  Higher = movement must be more obvious before tracking starts.
-
-  minBlobPixels:
-  Higher = movement must occupy a larger area before creating a tracker.
-*/
+let cam;
+let prevFrame;
+let diffImg;
+let haloLayer;
 
 let motionThreshold = 45;
 let minBlobPixels = 500;
 
 let blobs = [];
-let prevPos = new Map();
+
+// stores recent tracker positions
+let trackerHistory = [];
 
 function setup(){
 
   createCanvas(windowWidth, windowHeight);
+
   pixelDensity(1);
   frameRate(60);
-  colorMode(HSB, 360, 100, 100, 100);
+
+  colorMode(
+    HSB,
+    360,
+    100,
+    100,
+    100
+  );
 
   cam = createCapture({
-    video: {
-      facingMode: {
-        ideal: "environment"
+    video:{
+      facingMode:{
+        ideal:"environment"
       }
     },
-    audio: false
+    audio:false
   });
 
   cam.size(480,360);
   cam.hide();
 
-  prevFrame = createImage(cam.width, cam.height);
-  diffImg   = createImage(cam.width, cam.height);
+  prevFrame =
+    createImage(
+      cam.width,
+      cam.height
+    );
 
-  haloLayer = createGraphics(width, height);
-  haloLayer.colorMode(HSB, 360, 100, 100, 100);
+  diffImg =
+    createImage(
+      cam.width,
+      cam.height
+    );
+
+  haloLayer =
+    createGraphics(
+      width,
+      height
+    );
+
+  haloLayer.colorMode(
+    HSB,
+    360,
+    100,
+    100,
+    100
+  );
+
   haloLayer.clear();
 
   textFont('monospace');
@@ -76,32 +100,40 @@ function setup(){
 function draw(){
 
   background(0);
+
   blobs = [];
 
   cam.loadPixels();
   prevFrame.loadPixels();
 
-  if(cam.pixels.length > 0 && prevFrame.pixels.length > 0){
+  if(
+    cam.pixels.length > 0 &&
+    prevFrame.pixels.length > 0
+  ){
 
     diffImg.loadPixels();
 
-    for(let i = 0; i < cam.pixels.length; i += 4){
+    for(
+      let i = 0;
+      i < cam.pixels.length;
+      i += 4
+    ){
 
       let d = dist(
+
         cam.pixels[i],
         cam.pixels[i+1],
         cam.pixels[i+2],
+
         prevFrame.pixels[i],
         prevFrame.pixels[i+1],
         prevFrame.pixels[i+2]
       );
 
-      /*
-        Only mark the pixel as motion when
-        the frame-to-frame change is strong enough.
-      */
-
-      let v = d > motionThreshold ? 255 : 0;
+      let v =
+        d > motionThreshold
+        ? 255
+        : 0;
 
       diffImg.pixels[i]   = v;
       diffImg.pixels[i+1] = v;
@@ -111,28 +143,55 @@ function draw(){
 
     diffImg.updatePixels();
 
-    // Normal real-life camera
-    image(cam, 0, 0, width, height);
-
-    blobs = findBlobs(
-      diffImg,
-      cam.width,
-      cam.height
+    // REAL CAMERA VIEW
+    image(
+      cam,
+      0,
+      0,
+      width,
+      height
     );
 
-    // Short halo persistence
-    haloLayer.fill(0,0,0,38);
-    haloLayer.noStroke();
-    haloLayer.rect(0,0,width,height);
+    blobs =
+      findBlobs(
+        diffImg,
+        cam.width,
+        cam.height
+      );
 
-    let t = millis()/1000;
+    // erase old halo trails relatively quickly
+    haloLayer.fill(
+      0,
+      0,
+      0,
+      52
+    );
+
+    haloLayer.noStroke();
+
+    haloLayer.rect(
+      0,
+      0,
+      width,
+      height
+    );
+
+    let t =
+      millis()/1000;
 
     let pulse =
       (sin(t * 1.2) + 1) / 2;
 
     let centers = [];
 
-    for(let b of blobs){
+    for(
+      let i = 0;
+      i < blobs.length;
+      i++
+    ){
+
+      let b =
+        blobs[i];
 
       let cx = map(
         (b.minX + b.maxX)/2,
@@ -155,25 +214,16 @@ function draw(){
         y:cy
       });
 
-      let key =
-        `${int(cx)}:${int(cy)}`;
+      /*
+        Sonic Tracker palette.
 
-      let prev =
-        prevPos.get(key) ||
-        createVector(cx,cy);
+        Roughly:
+        cyan
+        blue
+        violet
 
-      let sp =
-        dist(
-          prev.x,
-          prev.y,
-          cx,
-          cy
-        );
-
-      prevPos.set(
-        key,
-        createVector(cx,cy)
-      );
+        NOT random.
+      */
 
       let hueVal =
         (
@@ -184,22 +234,33 @@ function draw(){
           ) * 50
         ) % 360;
 
-      let size = map(
-        b.count,
-        minBlobPixels,
-        3000,
-        120,
-        260
-      );
+      /*
+        SMALLER HALOS
+      */
+
+      let haloSize =
+        map(
+          b.count,
+          minBlobPixels,
+          3000,
+          55,
+          125
+        );
+
+      haloSize =
+        constrain(
+          haloSize,
+          55,
+          125
+        );
 
       drawHalo(
         haloLayer,
         cx,
         cy,
-        size,
+        haloSize,
         hueVal,
-        pulse,
-        sp
+        pulse
       );
     }
 
@@ -213,7 +274,17 @@ function draw(){
 
     blendMode(BLEND);
 
-    drawConnectorLines(centers);
+    // MACHINE-VISION LAYERS
+
+    drawConnectorLines(
+      centers
+    );
+
+    updateTrackerHistory(
+      centers
+    );
+
+    drawMotionTails();
 
     drawTrackers();
 
@@ -231,20 +302,122 @@ function draw(){
   }
 }
 
-function drawConnectorLines(centers){
+/*
+  HALO
+*/
 
-  if(centers.length < 2){
+function drawHalo(
+  layer,
+  x,
+  y,
+  r,
+  hueVal,
+  pulse
+){
+
+  layer.push();
+
+  layer.translate(
+    x,
+    y
+  );
+
+  layer.noFill();
+
+  for(
+    let i = 0;
+    i < 3;
+    i++
+  ){
+
+    let alpha =
+      map(
+        i,
+        0,
+        2,
+        48,
+        10
+      );
+
+    layer.stroke(
+      hueVal,
+      80,
+      100,
+      alpha
+    );
+
+    layer.strokeWeight(
+      map(
+        i,
+        0,
+        2,
+        10,
+        3
+      )
+    );
+
+    layer.beginShape();
+
+    for(
+      let a = 0;
+      a < TWO_PI;
+      a += PI/70
+    ){
+
+      let sx =
+        cos(a) *
+        r *
+        (
+          1 +
+          0.015 *
+          pulse
+        );
+
+      let sy =
+        sin(a) *
+        r *
+        (
+          1 +
+          0.015 *
+          pulse
+        );
+
+      layer.vertex(
+        sx,
+        sy
+      );
+    }
+
+    layer.endShape(CLOSE);
+
+    r *= 0.82;
+  }
+
+  layer.pop();
+}
+
+/*
+  CONNECT TRACKED BLOBS
+*/
+
+function drawConnectorLines(
+  centers
+){
+
+  if(
+    centers.length < 2
+  ){
     return;
   }
 
   stroke(
-    180,
-    40,
+    190,
+    30,
     100,
-    75
+    55
   );
 
-  strokeWeight(2);
+  strokeWeight(1.5);
 
   noFill();
 
@@ -263,124 +436,161 @@ function drawConnectorLines(centers){
   }
 }
 
-function drawHalo(
-  layer,
-  x,
-  y,
-  r,
-  hueVal,
-  pulse,
-  spd
+/*
+  SAVE A SHORT HISTORY
+  OF TRACKER POSITIONS
+*/
+
+function updateTrackerHistory(
+  centers
 ){
 
-  layer.push();
-
-  layer.translate(
-    x,
-    y
+  trackerHistory.push(
+    centers.map(
+      p => ({
+        x:p.x,
+        y:p.y
+      })
+    )
   );
 
-  layer.noFill();
+  // about 8 frames of history
+  if(
+    trackerHistory.length > 8
+  ){
+    trackerHistory.shift();
+  }
+}
 
-  for(let i = 0; i < 3; i++){
+/*
+  SHORT MOVEMENT TAIL
+*/
+
+function drawMotionTails(){
+
+  if(
+    trackerHistory.length < 2
+  ){
+    return;
+  }
+
+  for(
+    let frame = 1;
+    frame < trackerHistory.length;
+    frame++
+  ){
+
+    let previous =
+      trackerHistory[
+        frame - 1
+      ];
+
+    let current =
+      trackerHistory[
+        frame
+      ];
+
+    let count =
+      min(
+        previous.length,
+        current.length
+      );
 
     let alpha =
       map(
-        i,
-        0,
-        2,
-        55,
-        14
+        frame,
+        1,
+        trackerHistory.length-1,
+        10,
+        60
       );
 
-    layer.stroke(
-      hueVal,
-      80,
+    stroke(
+      190,
+      30,
       100,
       alpha
     );
 
-    layer.strokeWeight(
-      map(
-        i,
-        0,
-        2,
-        16,
-        4
-      )
-    );
-
-    layer.beginShape();
+    strokeWeight(1.5);
 
     for(
-      let a = 0;
-      a < TWO_PI;
-      a += PI/70
+      let i = 0;
+      i < count;
+      i++
     ){
 
-      let sx =
-        cos(a) *
-        r *
-        (1 + 0.018 * pulse);
-
-      let sy =
-        sin(a) *
-        r *
-        (1 + 0.018 * pulse);
-
-      layer.vertex(
-        sx,
-        sy
+      line(
+        previous[i].x,
+        previous[i].y,
+        current[i].x,
+        current[i].y
       );
     }
-
-    layer.endShape(CLOSE);
-
-    r *= 0.87;
   }
-
-  layer.pop();
 }
+
+/*
+  TRACKER BOXES,
+  CENTER TARGET,
+  COORDINATES
+*/
 
 function drawTrackers(){
 
-  for(let b of blobs){
+  for(
+    let b of blobs
+  ){
 
-    let cx = map(
-      (b.minX + b.maxX)/2,
-      0,
-      cam.width,
-      0,
-      width
-    );
+    let cx =
+      map(
+        (b.minX + b.maxX)/2,
+        0,
+        cam.width,
+        0,
+        width
+      );
 
-    let cy = map(
-      (b.minY + b.maxY)/2,
-      0,
-      cam.height,
-      0,
-      height
-    );
+    let cy =
+      map(
+        (b.minY + b.maxY)/2,
+        0,
+        cam.height,
+        0,
+        height
+      );
 
-    let side = map(
-      b.count,
-      minBlobPixels,
-      3000,
-      100,
-      230
-    );
+    let side =
+      map(
+        b.count,
+        minBlobPixels,
+        3000,
+        75,
+        165
+      );
+
+    side =
+      constrain(
+        side,
+        75,
+        165
+      );
 
     let half =
-      side/2;
+      side / 2;
+
+    /*
+      TRACKER BOX
+    */
 
     stroke(
       0,
       0,
       100,
-      95
+      90
     );
 
-    strokeWeight(2.5);
+    strokeWeight(1.7);
 
     noFill();
 
@@ -389,24 +599,74 @@ function drawTrackers(){
       cy-half,
       side,
       side,
-      10
+      6
     );
+
+    /*
+      CENTER TARGET DOT
+    */
+
+    noStroke();
+
+    fill(
+      190,
+      55,
+      100,
+      100
+    );
+
+    circle(
+      cx,
+      cy,
+      7
+    );
+
+    /*
+      SMALL CROSSHAIR
+    */
+
+    stroke(
+      0,
+      0,
+      100,
+      85
+    );
+
+    strokeWeight(1);
+
+    line(
+      cx - 12,
+      cy,
+      cx + 12,
+      cy
+    );
+
+    line(
+      cx,
+      cy - 12,
+      cx,
+      cy + 12
+    );
+
+    /*
+      COORDINATES
+    */
 
     let label =
       `(${int(cx)}, ${int(cy)})`;
 
     textAlign(CENTER);
 
-    textSize(24);
+    textSize(22);
 
     textStyle(BOLD);
 
-    // Coordinate shadow
+    // shadow
     fill(
       0,
       0,
       0,
-      90
+      100
     );
 
     noStroke();
@@ -414,10 +674,10 @@ function drawTrackers(){
     text(
       label,
       cx + 2,
-      cy - half - 16
+      cy - half - 13
     );
 
-    // Coordinate text
+    // main white text
     fill(
       0,
       0,
@@ -428,10 +688,14 @@ function drawTrackers(){
     text(
       label,
       cx,
-      cy - half - 18
+      cy - half - 15
     );
   }
 }
+
+/*
+  FIND MOTION BLOBS
+*/
 
 function findBlobs(
   img,
@@ -461,11 +725,11 @@ function findBlobs(
     ){
 
       let idx =
-        x + y * w;
+        x + y*w;
 
       let p =
         img.pixels[
-          idx * 4
+          idx*4
         ];
 
       if(
@@ -473,21 +737,15 @@ function findBlobs(
         !visited[idx]
       ){
 
-        let b = flood(
-          x,
-          y,
-          visited,
-          img,
-          w,
-          h
-        );
-
-        /*
-          Ignore tiny/noisy areas.
-
-          A motion region must contain
-          at least 500 connected pixels.
-        */
+        let b =
+          flood(
+            x,
+            y,
+            visited,
+            img,
+            w,
+            h
+          );
 
         if(
           b.count >
@@ -502,6 +760,10 @@ function findBlobs(
   return found;
 }
 
+/*
+  FLOOD FILL
+*/
+
 function flood(
   x,
   y,
@@ -511,7 +773,8 @@ function flood(
   h
 ){
 
-  let st = [[x,y]];
+  let st =
+    [[x,y]];
 
   let minX = x;
   let maxX = x;
@@ -521,9 +784,14 @@ function flood(
 
   let c = 0;
 
-  while(st.length){
+  while(
+    st.length
+  ){
 
-    let [cx,cy] =
+    let [
+      cx,
+      cy
+    ] =
       st.pop();
 
     if(
@@ -536,7 +804,8 @@ function flood(
     }
 
     let idx =
-      cx + cy * w;
+      cx +
+      cy*w;
 
     if(
       vis[idx]
@@ -545,10 +814,12 @@ function flood(
     }
 
     let p =
-      idx * 4;
+      idx*4;
 
     if(
-      img.pixels[p] <= 128
+      img.pixels[p]
+      <=
+      128
     ){
       continue;
     }
@@ -598,6 +869,11 @@ function flood(
   };
 }
 
+/*
+  HANDLE PHONE ROTATION /
+  RESIZE
+*/
+
 function windowResized(){
 
   resizeCanvas(
@@ -620,6 +896,8 @@ function windowResized(){
   );
 
   haloLayer.clear();
+
+  trackerHistory = [];
 }
 
 </script>

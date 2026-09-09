@@ -34,8 +34,6 @@ let motionThreshold = 45;
 let minBlobPixels = 500;
 
 let blobs = [];
-
-// stores recent tracker positions
 let trackerHistory = [];
 
 function setup(){
@@ -100,7 +98,6 @@ function setup(){
 function draw(){
 
   background(0);
-
   blobs = [];
 
   cam.loadPixels();
@@ -143,7 +140,7 @@ function draw(){
 
     diffImg.updatePixels();
 
-    // REAL CAMERA VIEW
+    // REAL CAMERA
     image(
       cam,
       0,
@@ -159,12 +156,12 @@ function draw(){
         cam.height
       );
 
-    // erase old halo trails relatively quickly
+    // HALO TRAIL FADE
     haloLayer.fill(
       0,
       0,
       0,
-      52
+      55
     );
 
     haloLayer.noStroke();
@@ -215,14 +212,8 @@ function draw(){
       });
 
       /*
-        Sonic Tracker palette.
-
-        Roughly:
-        cyan
-        blue
-        violet
-
-        NOT random.
+        HALO PALETTE:
+        cyan → blue → violet
       */
 
       let hueVal =
@@ -235,7 +226,7 @@ function draw(){
         ) % 360;
 
       /*
-        SMALLER HALOS
+        SMALL ORGANIC HALO
       */
 
       let haloSize =
@@ -243,15 +234,15 @@ function draw(){
           b.count,
           minBlobPixels,
           3000,
-          55,
-          125
+          45,
+          105
         );
 
       haloSize =
         constrain(
           haloSize,
-          55,
-          125
+          45,
+          105
         );
 
       drawHalo(
@@ -274,7 +265,9 @@ function draw(){
 
     blendMode(BLEND);
 
-    // MACHINE-VISION LAYERS
+    /*
+      MACHINE-VISION LAYER
+    */
 
     drawConnectorLines(
       centers
@@ -303,7 +296,7 @@ function draw(){
 }
 
 /*
-  HALO
+  ORGANIC HALO
 */
 
 function drawHalo(
@@ -335,8 +328,8 @@ function drawHalo(
         i,
         0,
         2,
-        48,
-        10
+        42,
+        8
       );
 
     layer.stroke(
@@ -351,8 +344,8 @@ function drawHalo(
         i,
         0,
         2,
-        10,
-        3
+        8,
+        2
       )
     );
 
@@ -397,7 +390,7 @@ function drawHalo(
 }
 
 /*
-  CONNECT TRACKED BLOBS
+  STRONGER NETWORK LINES
 */
 
 function drawConnectorLines(
@@ -411,15 +404,13 @@ function drawConnectorLines(
   }
 
   stroke(
-    190,
-    30,
+    185,
+    70,
     100,
-    55
+    85
   );
 
-  strokeWeight(1.5);
-
-  noFill();
+  strokeWeight(2.5);
 
   for(
     let i = 0;
@@ -433,12 +424,51 @@ function drawConnectorLines(
       centers[i+1].x,
       centers[i+1].y
     );
+
+    /*
+      SMALL NODE ON CONNECTION
+    */
+
+    let mx =
+      (
+        centers[i].x +
+        centers[i+1].x
+      ) / 2;
+
+    let my =
+      (
+        centers[i].y +
+        centers[i+1].y
+      ) / 2;
+
+    noStroke();
+
+    fill(
+      185,
+      75,
+      100,
+      100
+    );
+
+    circle(
+      mx,
+      my,
+      5
+    );
+
+    stroke(
+      185,
+      70,
+      100,
+      85
+    );
+
+    strokeWeight(2.5);
   }
 }
 
 /*
-  SAVE A SHORT HISTORY
-  OF TRACKER POSITIONS
+  TRACKER HISTORY
 */
 
 function updateTrackerHistory(
@@ -454,16 +484,15 @@ function updateTrackerHistory(
     )
   );
 
-  // about 8 frames of history
   if(
-    trackerHistory.length > 8
+    trackerHistory.length > 7
   ){
     trackerHistory.shift();
   }
 }
 
 /*
-  SHORT MOVEMENT TAIL
+  MOVEMENT TRAJECTORY
 */
 
 function drawMotionTails(){
@@ -501,18 +530,18 @@ function drawMotionTails(){
         frame,
         1,
         trackerHistory.length-1,
-        10,
-        60
+        18,
+        70
       );
 
     stroke(
-      190,
-      30,
+      185,
+      65,
       100,
       alpha
     );
 
-    strokeWeight(1.5);
+    strokeWeight(2);
 
     for(
       let i = 0;
@@ -531,9 +560,7 @@ function drawMotionTails(){
 }
 
 /*
-  TRACKER BOXES,
-  CENTER TARGET,
-  COORDINATES
+  MACHINE-VISION TRACKER
 */
 
 function drawTrackers(){
@@ -565,32 +592,32 @@ function drawTrackers(){
         b.count,
         minBlobPixels,
         3000,
-        75,
-        165
+        90,
+        185
       );
 
     side =
       constrain(
         side,
-        75,
-        165
+        90,
+        185
       );
 
     let half =
-      side / 2;
+      side/2;
 
     /*
-      TRACKER BOX
+      CYAN-WHITE TRACKER BOX
     */
 
     stroke(
-      0,
-      0,
+      185,
+      65,
       100,
-      90
+      100
     );
 
-    strokeWeight(1.7);
+    strokeWeight(2.8);
 
     noFill();
 
@@ -599,18 +626,138 @@ function drawTrackers(){
       cy-half,
       side,
       side,
-      6
+      4
     );
 
     /*
-      CENTER TARGET DOT
+      CORNER BRACKETS
     */
+
+    let corner =
+      17;
+
+    stroke(
+      0,
+      0,
+      100,
+      100
+    );
+
+    strokeWeight(4);
+
+    // top left
+    line(
+      cx-half,
+      cy-half,
+      cx-half+corner,
+      cy-half
+    );
+
+    line(
+      cx-half,
+      cy-half,
+      cx-half,
+      cy-half+corner
+    );
+
+    // top right
+    line(
+      cx+half,
+      cy-half,
+      cx+half-corner,
+      cy-half
+    );
+
+    line(
+      cx+half,
+      cy-half,
+      cx+half,
+      cy-half+corner
+    );
+
+    // bottom left
+    line(
+      cx-half,
+      cy+half,
+      cx-half+corner,
+      cy+half
+    );
+
+    line(
+      cx-half,
+      cy+half,
+      cx-half,
+      cy+half-corner
+    );
+
+    // bottom right
+    line(
+      cx+half,
+      cy+half,
+      cx+half-corner,
+      cy+half
+    );
+
+    line(
+      cx+half,
+      cy+half,
+      cx+half,
+      cy+half-corner
+    );
+
+    /*
+      CENTER CROSSHAIR
+    */
+
+    stroke(
+      185,
+      70,
+      100,
+      100
+    );
+
+    strokeWeight(2);
+
+    line(
+      cx-18,
+      cy,
+      cx+18,
+      cy
+    );
+
+    line(
+      cx,
+      cy-18,
+      cx,
+      cy+18
+    );
+
+    /*
+      CENTER TARGET
+    */
+
+    noFill();
+
+    stroke(
+      0,
+      0,
+      100,
+      100
+    );
+
+    strokeWeight(2);
+
+    circle(
+      cx,
+      cy,
+      18
+    );
 
     noStroke();
 
     fill(
-      190,
-      55,
+      185,
+      70,
       100,
       100
     );
@@ -618,66 +765,104 @@ function drawTrackers(){
     circle(
       cx,
       cy,
-      7
+      6
     );
 
     /*
-      SMALL CROSSHAIR
+      SCAN LINE
     */
 
     stroke(
-      0,
-      0,
+      185,
+      80,
       100,
       85
     );
 
-    strokeWeight(1);
+    strokeWeight(2);
+
+    let scanY =
+      cy +
+      sin(
+        millis()/180
+      ) *
+      half *
+      0.65;
 
     line(
-      cx - 12,
-      cy,
-      cx + 12,
-      cy
-    );
-
-    line(
-      cx,
-      cy - 12,
-      cx,
-      cy + 12
+      cx-half+10,
+      scanY,
+      cx+half-10,
+      scanY
     );
 
     /*
-      COORDINATES
+      LABEL PANEL
     */
 
     let label =
-      `(${int(cx)}, ${int(cy)})`;
+      `TRACK  (${int(cx)}, ${int(cy)})`;
 
-    textAlign(CENTER);
+    textAlign(
+      CENTER,
+      CENTER
+    );
 
-    textSize(22);
-
+    textSize(20);
     textStyle(BOLD);
 
-    // shadow
+    let labelWidth =
+      textWidth(label) + 18;
+
+    let labelHeight =
+      30;
+
+    let labelY =
+      cy-half-28;
+
+    noStroke();
+
     fill(
       0,
       0,
       0,
+      72
+    );
+
+    rect(
+      cx-labelWidth/2,
+      labelY-labelHeight/2,
+      labelWidth,
+      labelHeight,
+      3
+    );
+
+    /*
+      CYAN TOP EDGE
+    */
+
+    stroke(
+      185,
+      75,
+      100,
       100
     );
 
-    noStroke();
+    strokeWeight(2);
 
-    text(
-      label,
-      cx + 2,
-      cy - half - 13
+    line(
+      cx-labelWidth/2,
+      labelY-labelHeight/2,
+      cx+labelWidth/2,
+      labelY-labelHeight/2
     );
 
-    // main white text
+    /*
+      LABEL TEXT
+    */
+
+    noStroke();
+
     fill(
       0,
       0,
@@ -688,13 +873,13 @@ function drawTrackers(){
     text(
       label,
       cx,
-      cy - half - 15
+      labelY
     );
   }
 }
 
 /*
-  FIND MOTION BLOBS
+  BLOB DETECTION
 */
 
 function findBlobs(
@@ -705,7 +890,7 @@ function findBlobs(
 
   let visited =
     new Uint8Array(
-      w * h
+      w*h
     );
 
   img.loadPixels();
@@ -725,7 +910,7 @@ function findBlobs(
     ){
 
       let idx =
-        x + y*w;
+        x+y*w;
 
       let p =
         img.pixels[
@@ -804,8 +989,7 @@ function flood(
     }
 
     let idx =
-      cx +
-      cy*w;
+      cx+cy*w;
 
     if(
       vis[idx]
@@ -817,9 +1001,7 @@ function flood(
       idx*4;
 
     if(
-      img.pixels[p]
-      <=
-      128
+      img.pixels[p] <= 128
     ){
       continue;
     }
@@ -868,11 +1050,6 @@ function flood(
     count:c
   };
 }
-
-/*
-  HANDLE PHONE ROTATION /
-  RESIZE
-*/
 
 function windowResized(){
 

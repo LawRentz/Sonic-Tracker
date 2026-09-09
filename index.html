@@ -140,6 +140,7 @@ function draw(){
 
     diffImg.updatePixels();
 
+    // REAL CAMERA
     image(
       cam,
       0,
@@ -155,6 +156,7 @@ function draw(){
         cam.height
       );
 
+    // HALO TRAIL FADE
     haloLayer.fill(
       0,
       0,
@@ -209,6 +211,7 @@ function draw(){
         y:cy
       });
 
+      // CYAN → BLUE → VIOLET HALO PALETTE
       let hueVal =
         (
           200 +
@@ -218,6 +221,7 @@ function draw(){
           ) * 50
         ) % 360;
 
+      // SMALL ORGANIC HALO
       let haloSize =
         map(
           b.count,
@@ -254,6 +258,7 @@ function draw(){
 
     blendMode(BLEND);
 
+    // MACHINE-VISION LAYER
     drawConnectorLines(
       centers
     );
@@ -279,6 +284,11 @@ function draw(){
     );
   }
 }
+
+
+/*
+  ORGANIC HALO
+*/
 
 function drawHalo(
   layer,
@@ -370,6 +380,11 @@ function drawHalo(
   layer.pop();
 }
 
+
+/*
+  NETWORK CONNECTION LINES
+*/
+
 function drawConnectorLines(
   centers
 ){
@@ -440,6 +455,11 @@ function drawConnectorLines(
   }
 }
 
+
+/*
+  TRACKER HISTORY
+*/
+
 function updateTrackerHistory(
   centers
 ){
@@ -459,6 +479,11 @@ function updateTrackerHistory(
     trackerHistory.shift();
   }
 }
+
+
+/*
+  MOVEMENT TRAJECTORY
+*/
 
 function drawMotionTails(){
 
@@ -524,6 +549,11 @@ function drawMotionTails(){
   }
 }
 
+
+/*
+  MACHINE-VISION TRACKER
+*/
+
 function drawTrackers(){
 
   for(
@@ -567,6 +597,11 @@ function drawTrackers(){
     let half =
       side/2;
 
+
+    /*
+      CYAN TRACKER BOX
+    */
+
     stroke(
       185,
       65,
@@ -586,6 +621,11 @@ function drawTrackers(){
       4
     );
 
+
+    /*
+      WHITE CORNER BRACKETS
+    */
+
     let corner =
       17;
 
@@ -598,6 +638,7 @@ function drawTrackers(){
 
     strokeWeight(4);
 
+    // TOP LEFT
     line(
       cx-half,
       cy-half,
@@ -612,6 +653,7 @@ function drawTrackers(){
       cy-half+corner
     );
 
+    // TOP RIGHT
     line(
       cx+half,
       cy-half,
@@ -626,6 +668,7 @@ function drawTrackers(){
       cy-half+corner
     );
 
+    // BOTTOM LEFT
     line(
       cx-half,
       cy+half,
@@ -640,6 +683,7 @@ function drawTrackers(){
       cy+half-corner
     );
 
+    // BOTTOM RIGHT
     line(
       cx+half,
       cy+half,
@@ -653,6 +697,11 @@ function drawTrackers(){
       cx+half,
       cy+half-corner
     );
+
+
+    /*
+      CENTER CROSSHAIR
+    */
 
     stroke(
       185,
@@ -677,6 +726,11 @@ function drawTrackers(){
       cy+18
     );
 
+
+    /*
+      CENTER TARGET RING
+    */
+
     noFill();
 
     stroke(
@@ -694,6 +748,11 @@ function drawTrackers(){
       18
     );
 
+
+    /*
+      CENTER TARGET DOT
+    */
+
     noStroke();
 
     fill(
@@ -709,8 +768,9 @@ function drawTrackers(){
       6
     );
 
+
     /*
-      THICKER SCAN LINE
+      THICK MOVING SCAN LINE
     */
 
     stroke(
@@ -737,8 +797,14 @@ function drawTrackers(){
       scanY
     );
 
+
+    /*
+      COORDINATES ONLY
+      NO "TRACK" TEXT
+    */
+
     let label =
-      `TRACK  (${int(cx)}, ${int(cy)})`;
+      `(${int(cx)}, ${int(cy)})`;
 
     textAlign(
       CENTER,
@@ -757,6 +823,11 @@ function drawTrackers(){
     let labelY =
       cy-half-28;
 
+
+    /*
+      DARK COORDINATE PANEL
+    */
+
     noStroke();
 
     fill(
@@ -774,6 +845,11 @@ function drawTrackers(){
       3
     );
 
+
+    /*
+      CYAN PANEL EDGE
+    */
+
     stroke(
       185,
       75,
@@ -789,6 +865,11 @@ function drawTrackers(){
       cx+labelWidth/2,
       labelY-labelHeight/2
     );
+
+
+    /*
+      WHITE COORDINATE TEXT
+    */
 
     noStroke();
 
@@ -806,6 +887,11 @@ function drawTrackers(){
     );
   }
 }
+
+
+/*
+  BLOB DETECTION
+*/
 
 function findBlobs(
   img,
@@ -869,6 +955,11 @@ function findBlobs(
 
   return found;
 }
+
+
+/*
+  FLOOD FILL
+*/
 
 function flood(
   x,
@@ -971,6 +1062,11 @@ function flood(
     count:c
   };
 }
+
+
+/*
+  PHONE ROTATION / RESIZE
+*/
 
 function windowResized(){
 

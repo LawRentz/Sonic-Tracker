@@ -36,6 +36,17 @@ let minBlobPixels = 500;
 let blobs = [];
 let trackerHistory = [];
 
+/*
+  SONIC TRACKER COLOR SYSTEM
+
+  GOLD / YELLOW = ORGANIC HALO
+  ELECTRIC ROYAL BLUE = MACHINE VISION
+  WHITE = DATA / CORNER DETAILS
+*/
+
+let sonicBlue = 225;
+let sonicGold = 48;
+
 function setup(){
 
   createCanvas(windowWidth, windowHeight);
@@ -98,6 +109,7 @@ function setup(){
 function draw(){
 
   background(0);
+
   blobs = [];
 
   cam.loadPixels();
@@ -140,7 +152,10 @@ function draw(){
 
     diffImg.updatePixels();
 
-    // REAL CAMERA
+    /*
+      REAL-LIFE CAMERA
+    */
+
     image(
       cam,
       0,
@@ -156,7 +171,10 @@ function draw(){
         cam.height
       );
 
-    // HALO TRAIL FADE
+    /*
+      GOLD HALO TRAIL FADE
+    */
+
     haloLayer.fill(
       0,
       0,
@@ -211,17 +229,20 @@ function draw(){
         y:cy
       });
 
-      // CYAN → BLUE → VIOLET HALO PALETTE
-      let hueVal =
-        (
-          200 +
-          sin(
-            t * 0.4 +
-            b.minX * 0.08
-          ) * 50
-        ) % 360;
+      /*
+        GOLD HALO
 
-      // SMALL ORGANIC HALO
+        Subtle movement from warm gold
+        into bright yellow-gold.
+      */
+
+      let goldHue =
+        sonicGold +
+        sin(
+          t * 0.7 +
+          b.minX * 0.04
+        ) * 7;
+
       let haloSize =
         map(
           b.count,
@@ -238,15 +259,19 @@ function draw(){
           105
         );
 
-      drawHalo(
+      drawGoldHalo(
         haloLayer,
         cx,
         cy,
         haloSize,
-        hueVal,
+        goldHue,
         pulse
       );
     }
+
+    /*
+      ADDITIVE GOLD GLOW
+    */
 
     blendMode(ADD);
 
@@ -258,7 +283,10 @@ function draw(){
 
     blendMode(BLEND);
 
-    // MACHINE-VISION LAYER
+    /*
+      ELECTRIC BLUE MACHINE VISION
+    */
+
     drawConnectorLines(
       centers
     );
@@ -287,15 +315,15 @@ function draw(){
 
 
 /*
-  ORGANIC HALO
+  GOLD RING / HALO
 */
 
-function drawHalo(
+function drawGoldHalo(
   layer,
   x,
   y,
   r,
-  hueVal,
+  goldHue,
   pulse
 ){
 
@@ -308,6 +336,29 @@ function drawHalo(
 
   layer.noFill();
 
+  /*
+    OUTER GOLD GLOW
+  */
+
+  layer.stroke(
+    goldHue,
+    95,
+    100,
+    18
+  );
+
+  layer.strokeWeight(18);
+
+  layer.circle(
+    0,
+    0,
+    r * 2.05
+  );
+
+  /*
+    THREE GOLD RINGS
+  */
+
   for(
     let i = 0;
     i < 3;
@@ -319,13 +370,13 @@ function drawHalo(
         i,
         0,
         2,
-        42,
-        8
+        90,
+        28
       );
 
     layer.stroke(
-      hueVal,
-      80,
+      goldHue,
+      95,
       100,
       alpha
     );
@@ -335,46 +386,68 @@ function drawHalo(
         i,
         0,
         2,
-        8,
-        2
+        7,
+        2.5
       )
     );
 
-    layer.beginShape();
-
-    for(
-      let a = 0;
-      a < TWO_PI;
-      a += PI/70
-    ){
-
-      let sx =
-        cos(a) *
-        r *
-        (
-          1 +
-          0.015 *
-          pulse
-        );
-
-      let sy =
-        sin(a) *
-        r *
-        (
-          1 +
-          0.015 *
-          pulse
-        );
-
-      layer.vertex(
-        sx,
-        sy
+    let ringSize =
+      r *
+      (
+        1 +
+        0.025 *
+        pulse
       );
-    }
 
-    layer.endShape(CLOSE);
+    layer.circle(
+      0,
+      0,
+      ringSize * 2
+    );
 
-    r *= 0.82;
+    r *= 0.84;
+  }
+
+  /*
+    SMALL GOLD ENERGY DOTS
+  */
+
+  layer.noStroke();
+
+  for(
+    let i = 0;
+    i < 8;
+    i++
+  ){
+
+    let a =
+      TWO_PI *
+      i/8 +
+      millis()/2200;
+
+    let orbit =
+      r * 1.45;
+
+    let px =
+      cos(a) *
+      orbit;
+
+    let py =
+      sin(a) *
+      orbit;
+
+    layer.fill(
+      goldHue,
+      90,
+      100,
+      60
+    );
+
+    layer.circle(
+      px,
+      py,
+      3
+    );
   }
 
   layer.pop();
@@ -382,7 +455,7 @@ function drawHalo(
 
 
 /*
-  NETWORK CONNECTION LINES
+  ELECTRIC BLUE CONNECTION NETWORK
 */
 
 function drawConnectorLines(
@@ -396,13 +469,13 @@ function drawConnectorLines(
   }
 
   stroke(
-    185,
-    70,
+    sonicBlue,
+    95,
     100,
-    85
+    90
   );
 
-  strokeWeight(2.5);
+  strokeWeight(3);
 
   for(
     let i = 0;
@@ -429,11 +502,15 @@ function drawConnectorLines(
         centers[i+1].y
       ) / 2;
 
+    /*
+      BLUE CONNECTION NODE
+    */
+
     noStroke();
 
     fill(
-      185,
-      75,
+      sonicBlue,
+      90,
       100,
       100
     );
@@ -441,23 +518,40 @@ function drawConnectorLines(
     circle(
       mx,
       my,
-      5
+      7
+    );
+
+    /*
+      WHITE CENTER IN NODE
+    */
+
+    fill(
+      0,
+      0,
+      100,
+      100
+    );
+
+    circle(
+      mx,
+      my,
+      2.5
     );
 
     stroke(
-      185,
-      70,
+      sonicBlue,
+      95,
       100,
-      85
+      90
     );
 
-    strokeWeight(2.5);
+    strokeWeight(3);
   }
 }
 
 
 /*
-  TRACKER HISTORY
+  MOTION HISTORY
 */
 
 function updateTrackerHistory(
@@ -482,7 +576,7 @@ function updateTrackerHistory(
 
 
 /*
-  MOVEMENT TRAJECTORY
+  ELECTRIC BLUE MOVEMENT TRAILS
 */
 
 function drawMotionTails(){
@@ -520,18 +614,18 @@ function drawMotionTails(){
         frame,
         1,
         trackerHistory.length-1,
-        18,
-        70
+        15,
+        78
       );
 
     stroke(
-      185,
-      65,
+      sonicBlue,
+      95,
       100,
       alpha
     );
 
-    strokeWeight(2);
+    strokeWeight(2.5);
 
     for(
       let i = 0;
@@ -551,7 +645,7 @@ function drawMotionTails(){
 
 
 /*
-  MACHINE-VISION TRACKER
+  MAIN MACHINE-VISION GRAPHICS
 */
 
 function drawTrackers(){
@@ -599,17 +693,17 @@ function drawTrackers(){
 
 
     /*
-      CYAN TRACKER BOX
+      ELECTRIC / ROYAL BLUE BOX
     */
 
     stroke(
-      185,
-      65,
+      sonicBlue,
+      100,
       100,
       100
     );
 
-    strokeWeight(2.8);
+    strokeWeight(3.5);
 
     noFill();
 
@@ -627,7 +721,7 @@ function drawTrackers(){
     */
 
     let corner =
-      17;
+      19;
 
     stroke(
       0,
@@ -638,7 +732,7 @@ function drawTrackers(){
 
     strokeWeight(4);
 
-    // TOP LEFT
+    // top left
     line(
       cx-half,
       cy-half,
@@ -653,7 +747,7 @@ function drawTrackers(){
       cy-half+corner
     );
 
-    // TOP RIGHT
+    // top right
     line(
       cx+half,
       cy-half,
@@ -668,7 +762,7 @@ function drawTrackers(){
       cy-half+corner
     );
 
-    // BOTTOM LEFT
+    // bottom left
     line(
       cx-half,
       cy+half,
@@ -683,7 +777,7 @@ function drawTrackers(){
       cy+half-corner
     );
 
-    // BOTTOM RIGHT
+    // bottom right
     line(
       cx+half,
       cy+half,
@@ -700,35 +794,35 @@ function drawTrackers(){
 
 
     /*
-      CENTER CROSSHAIR
+      BLUE CROSSHAIR
     */
 
     stroke(
-      185,
-      70,
+      sonicBlue,
+      100,
       100,
       100
     );
 
-    strokeWeight(2);
+    strokeWeight(3);
 
     line(
-      cx-18,
+      cx-19,
       cy,
-      cx+18,
+      cx+19,
       cy
     );
 
     line(
       cx,
-      cy-18,
+      cy-19,
       cx,
-      cy+18
+      cy+19
     );
 
 
     /*
-      CENTER TARGET RING
+      WHITE TARGET RING
     */
 
     noFill();
@@ -740,24 +834,24 @@ function drawTrackers(){
       100
     );
 
-    strokeWeight(2);
+    strokeWeight(2.5);
 
     circle(
       cx,
       cy,
-      18
+      20
     );
 
 
     /*
-      CENTER TARGET DOT
+      GOLD CENTER DOT
     */
 
     noStroke();
 
     fill(
-      185,
-      70,
+      sonicGold,
+      100,
       100,
       100
     );
@@ -765,19 +859,19 @@ function drawTrackers(){
     circle(
       cx,
       cy,
-      6
+      8
     );
 
 
     /*
-      THICK MOVING SCAN LINE
+      THICK ELECTRIC BLUE SCAN LINE
     */
 
     stroke(
-      185,
-      80,
+      sonicBlue,
       100,
-      95
+      100,
+      100
     );
 
     strokeWeight(4);
@@ -799,8 +893,7 @@ function drawTrackers(){
 
 
     /*
-      COORDINATES ONLY
-      NO "TRACK" TEXT
+      COORDINATES
     */
 
     let label =
@@ -812,10 +905,11 @@ function drawTrackers(){
     );
 
     textSize(20);
+
     textStyle(BOLD);
 
     let labelWidth =
-      textWidth(label) + 18;
+      textWidth(label) + 20;
 
     let labelHeight =
       30;
@@ -825,7 +919,7 @@ function drawTrackers(){
 
 
     /*
-      DARK COORDINATE PANEL
+      DARK DATA PANEL
     */
 
     noStroke();
@@ -834,7 +928,7 @@ function drawTrackers(){
       0,
       0,
       0,
-      72
+      80
     );
 
     rect(
@@ -847,28 +941,31 @@ function drawTrackers(){
 
 
     /*
-      CYAN PANEL EDGE
+      ELECTRIC BLUE PANEL BORDER
     */
 
+    noFill();
+
     stroke(
-      185,
-      75,
+      sonicBlue,
+      100,
       100,
       100
     );
 
     strokeWeight(2);
 
-    line(
+    rect(
       cx-labelWidth/2,
       labelY-labelHeight/2,
-      cx+labelWidth/2,
-      labelY-labelHeight/2
+      labelWidth,
+      labelHeight,
+      3
     );
 
 
     /*
-      WHITE COORDINATE TEXT
+      WHITE COORDINATES
     */
 
     noStroke();

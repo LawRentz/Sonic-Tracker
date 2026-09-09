@@ -39,9 +39,9 @@ let trackerHistory = [];
 /*
   SONIC TRACKER COLOR SYSTEM
 
-  GOLD / YELLOW = ORGANIC HALO
-  ELECTRIC ROYAL BLUE = MACHINE VISION
-  WHITE = DATA / CORNER DETAILS
+  GOLD = ENERGY HALO
+  ELECTRIC / ROYAL BLUE = MACHINE VISION
+  WHITE = DATA / STRUCTURAL DETAILS
 */
 
 let sonicBlue = 225;
@@ -152,8 +152,9 @@ function draw(){
 
     diffImg.updatePixels();
 
+
     /*
-      REAL-LIFE CAMERA
+      REAL CAMERA
     */
 
     image(
@@ -164,6 +165,11 @@ function draw(){
       height
     );
 
+
+    /*
+      FIND MOTION BLOBS
+    */
+
     blobs =
       findBlobs(
         diffImg,
@@ -171,15 +177,16 @@ function draw(){
         cam.height
       );
 
+
     /*
-      GOLD HALO TRAIL FADE
+      HALO TRAIL FADE
     */
 
     haloLayer.fill(
       0,
       0,
       0,
-      55
+      62
     );
 
     haloLayer.noStroke();
@@ -191,6 +198,7 @@ function draw(){
       height
     );
 
+
     let t =
       millis()/1000;
 
@@ -198,6 +206,7 @@ function draw(){
       (sin(t * 1.2) + 1) / 2;
 
     let centers = [];
+
 
     for(
       let i = 0;
@@ -229,11 +238,12 @@ function draw(){
         y:cy
       });
 
-      /*
-        GOLD HALO
 
-        Subtle movement from warm gold
-        into bright yellow-gold.
+      /*
+        GOLD COLOR MOVEMENT
+
+        Keeps the halo inside a
+        tight yellow / gold range.
       */
 
       let goldHue =
@@ -241,23 +251,29 @@ function draw(){
         sin(
           t * 0.7 +
           b.minX * 0.04
-        ) * 7;
+        ) * 6;
+
+
+      /*
+        HALO SIZE
+      */
 
       let haloSize =
         map(
           b.count,
           minBlobPixels,
           3000,
-          45,
-          105
+          43,
+          100
         );
 
       haloSize =
         constrain(
           haloSize,
-          45,
-          105
+          43,
+          100
         );
+
 
       drawGoldHalo(
         haloLayer,
@@ -269,8 +285,9 @@ function draw(){
       );
     }
 
+
     /*
-      ADDITIVE GOLD GLOW
+      SOFT ADDITIVE GOLD GLOW
     */
 
     blendMode(ADD);
@@ -282,6 +299,7 @@ function draw(){
     );
 
     blendMode(BLEND);
+
 
     /*
       ELECTRIC BLUE MACHINE VISION
@@ -299,6 +317,11 @@ function draw(){
 
     drawTrackers();
 
+
+    /*
+      STORE CURRENT FRAME
+    */
+
     prevFrame.copy(
       cam,
       0,
@@ -315,7 +338,7 @@ function draw(){
 
 
 /*
-  GOLD RING / HALO
+  SOFT GOLD ENERGY HALO
 */
 
 function drawGoldHalo(
@@ -336,27 +359,55 @@ function drawGoldHalo(
 
   layer.noFill();
 
+
   /*
-    OUTER GOLD GLOW
+    VERY SOFT OUTER GLOW
+
+    This used to be much stronger.
+    Lower alpha makes the gold
+    feel luminous instead of solid.
   */
 
   layer.stroke(
     goldHue,
-    95,
+    90,
     100,
-    18
+    8
   );
 
-  layer.strokeWeight(18);
+  layer.strokeWeight(16);
 
   layer.circle(
     0,
     0,
-    r * 2.05
+    r * 2.08
   );
 
+
   /*
-    THREE GOLD RINGS
+    SECOND SOFT GLOW
+  */
+
+  layer.stroke(
+    goldHue,
+    90,
+    100,
+    13
+  );
+
+  layer.strokeWeight(8);
+
+  layer.circle(
+    0,
+    0,
+    r * 2.03
+  );
+
+
+  /*
+    MAIN GOLD RINGS
+
+    More transparent than before.
   */
 
   for(
@@ -370,13 +421,13 @@ function drawGoldHalo(
         i,
         0,
         2,
-        90,
-        28
+        58,
+        16
       );
 
     layer.stroke(
       goldHue,
-      95,
+      92,
       100,
       alpha
     );
@@ -386,8 +437,8 @@ function drawGoldHalo(
         i,
         0,
         2,
-        7,
-        2.5
+        4.5,
+        1.5
       )
     );
 
@@ -395,7 +446,7 @@ function drawGoldHalo(
       r *
       (
         1 +
-        0.025 *
+        0.018 *
         pulse
       );
 
@@ -405,11 +456,12 @@ function drawGoldHalo(
       ringSize * 2
     );
 
-    r *= 0.84;
+    r *= 0.86;
   }
 
+
   /*
-    SMALL GOLD ENERGY DOTS
+    SUBTLE GOLD PARTICLES
   */
 
   layer.noStroke();
@@ -423,10 +475,10 @@ function drawGoldHalo(
     let a =
       TWO_PI *
       i/8 +
-      millis()/2200;
+      millis()/2500;
 
     let orbit =
-      r * 1.45;
+      r * 1.48;
 
     let px =
       cos(a) *
@@ -440,15 +492,16 @@ function drawGoldHalo(
       goldHue,
       90,
       100,
-      60
+      30
     );
 
     layer.circle(
       px,
       py,
-      3
+      2.5
     );
   }
+
 
   layer.pop();
 }
@@ -477,6 +530,7 @@ function drawConnectorLines(
 
   strokeWeight(3);
 
+
   for(
     let i = 0;
     i < centers.length - 1;
@@ -490,6 +544,7 @@ function drawConnectorLines(
       centers[i+1].y
     );
 
+
     let mx =
       (
         centers[i].x +
@@ -501,6 +556,7 @@ function drawConnectorLines(
         centers[i].y +
         centers[i+1].y
       ) / 2;
+
 
     /*
       BLUE CONNECTION NODE
@@ -521,8 +577,9 @@ function drawConnectorLines(
       7
     );
 
+
     /*
-      WHITE CENTER IN NODE
+      WHITE NODE CENTER
     */
 
     fill(
@@ -538,6 +595,7 @@ function drawConnectorLines(
       2.5
     );
 
+
     stroke(
       sonicBlue,
       95,
@@ -551,7 +609,7 @@ function drawConnectorLines(
 
 
 /*
-  MOTION HISTORY
+  TRACKER HISTORY
 */
 
 function updateTrackerHistory(
@@ -576,7 +634,7 @@ function updateTrackerHistory(
 
 
 /*
-  ELECTRIC BLUE MOVEMENT TRAILS
+  ELECTRIC BLUE MOTION TRAILS
 */
 
 function drawMotionTails(){
@@ -586,6 +644,7 @@ function drawMotionTails(){
   ){
     return;
   }
+
 
   for(
     let frame = 1;
@@ -618,6 +677,7 @@ function drawMotionTails(){
         78
       );
 
+
     stroke(
       sonicBlue,
       95,
@@ -626,6 +686,7 @@ function drawMotionTails(){
     );
 
     strokeWeight(2.5);
+
 
     for(
       let i = 0;
@@ -645,7 +706,7 @@ function drawMotionTails(){
 
 
 /*
-  MAIN MACHINE-VISION GRAPHICS
+  MACHINE-VISION TRACKERS
 */
 
 function drawTrackers(){
@@ -671,6 +732,7 @@ function drawTrackers(){
         0,
         height
       );
+
 
     let side =
       map(
@@ -732,7 +794,9 @@ function drawTrackers(){
 
     strokeWeight(4);
 
-    // top left
+
+    // TOP LEFT
+
     line(
       cx-half,
       cy-half,
@@ -747,7 +811,9 @@ function drawTrackers(){
       cy-half+corner
     );
 
-    // top right
+
+    // TOP RIGHT
+
     line(
       cx+half,
       cy-half,
@@ -762,7 +828,9 @@ function drawTrackers(){
       cy-half+corner
     );
 
-    // bottom left
+
+    // BOTTOM LEFT
+
     line(
       cx-half,
       cy+half,
@@ -777,7 +845,9 @@ function drawTrackers(){
       cy+half-corner
     );
 
-    // bottom right
+
+    // BOTTOM RIGHT
+
     line(
       cx+half,
       cy+half,
@@ -794,7 +864,7 @@ function drawTrackers(){
 
 
     /*
-      BLUE CROSSHAIR
+      ELECTRIC BLUE CROSSHAIR
     */
 
     stroke(
@@ -893,7 +963,7 @@ function drawTrackers(){
 
 
     /*
-      COORDINATES
+      COORDINATES ONLY
     */
 
     let label =
@@ -919,7 +989,7 @@ function drawTrackers(){
 
 
     /*
-      DARK DATA PANEL
+      DARK COORDINATE PANEL
     */
 
     noStroke();
@@ -1005,6 +1075,7 @@ function findBlobs(
 
   let found = [];
 
+
   for(
     let y = 0;
     y < h;
@@ -1025,6 +1096,7 @@ function findBlobs(
           idx*4
         ];
 
+
       if(
         p > 128 &&
         !visited[idx]
@@ -1039,6 +1111,7 @@ function findBlobs(
             w,
             h
           );
+
 
         if(
           b.count >
@@ -1078,6 +1151,7 @@ function flood(
 
   let c = 0;
 
+
   while(
     st.length
   ){
@@ -1088,6 +1162,7 @@ function flood(
     ] =
       st.pop();
 
+
     if(
       cx < 0 ||
       cy < 0 ||
@@ -1097,8 +1172,10 @@ function flood(
       continue;
     }
 
+
     let idx =
       cx+cy*w;
+
 
     if(
       vis[idx]
@@ -1106,8 +1183,10 @@ function flood(
       continue;
     }
 
+
     let p =
       idx*4;
+
 
     if(
       img.pixels[p] <= 128
@@ -1115,9 +1194,11 @@ function flood(
       continue;
     }
 
+
     vis[idx] = 1;
 
     c++;
+
 
     minX =
       min(
@@ -1143,6 +1224,7 @@ function flood(
         cy
       );
 
+
     st.push(
       [cx+1,cy],
       [cx-1,cy],
@@ -1150,6 +1232,7 @@ function flood(
       [cx,cy-1]
     );
   }
+
 
   return {
     minX,
@@ -1181,6 +1264,7 @@ function windowResized(){
   haloLayer.colorMode(
     HSB,
     360,
+    100,
     100,
     100,
     100

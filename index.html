@@ -17,44 +17,6 @@
   canvas{
     display:block;
   }
-
-  #startScreen{
-    position:fixed;
-    inset:0;
-    z-index:1000;
-
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-direction:column;
-
-    background:#000;
-    color:#fff;
-
-    font-family:Arial,sans-serif;
-  }
-
-  #startButton{
-    padding:15px 22px;
-
-    border:2px solid white;
-    border-radius:12px;
-
-    background:#1357ff;
-    color:#fff;
-
-    font-size:17px;
-    font-weight:bold;
-  }
-
-  #startText{
-    margin-bottom:18px;
-
-    font-family:monospace;
-    font-size:14px;
-
-    opacity:0.8;
-  }
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
@@ -62,22 +24,9 @@
 
 <body>
 
-<div id="startScreen">
-
-  <div id="startText">
-    SONIC TRACKER
-  </div>
-
-  <button id="startButton">
-    START TRACKER
-  </button>
-
-</div>
-
 <script>
 
-let camVideo;
-let mediaStream;
+let cam;
 
 let analysisLayer;
 let analysisFrame;
@@ -85,9 +34,6 @@ let prevFrame;
 let diffImg;
 
 let haloLayer;
-
-let trackerRunning = false;
-
 
 /*
   MOTION SETTINGS
@@ -98,13 +44,7 @@ let minBlobPixels = 500;
 
 
 /*
-  ANALYSIS RESOLUTION
-
-  IMPORTANT:
-  This stays small for performance.
-
-  The actual camera displayed
-  underneath remains high quality.
+  INTERNAL TRACKING RESOLUTION
 */
 
 let analysisW = 480;
@@ -128,7 +68,7 @@ let sonicGold = 48;
 
 
 /*
-  P5 SETUP
+  SETUP
 */
 
 function setup(){
@@ -139,7 +79,6 @@ function setup(){
   );
 
   pixelDensity(1);
-
   frameRate(60);
 
   colorMode(
@@ -152,7 +91,44 @@ function setup(){
 
 
   /*
-    INVISIBLE ANALYSIS CANVAS
+    HIGH-QUALITY REAR CAMERA
+
+    IMPORTANT:
+    We request a high-resolution source,
+    but DO NOT resize cam to 480x360.
+  */
+
+  cam = createCapture({
+
+    video:{
+
+      facingMode:{
+        ideal:"environment"
+      },
+
+      width:{
+        ideal:1280
+      },
+
+      height:{
+        ideal:720
+      }
+
+    },
+
+    audio:false
+
+  });
+
+
+  cam.hide();
+
+
+  /*
+    LOW-RES ANALYSIS LAYER
+
+    THIS is 480x360,
+    NOT the visible camera.
   */
 
   analysisLayer =
@@ -170,11 +146,13 @@ function setup(){
       analysisH
     );
 
+
   prevFrame =
     createImage(
       analysisW,
       analysisH
     );
+
 
   diffImg =
     createImage(
@@ -206,183 +184,6 @@ function setup(){
 
   textFont('monospace');
   textStyle(BOLD);
-
-
-  document.getElementById(
-    'startButton'
-  ).addEventListener(
-    'click',
-    startTracker
-  );
-}
-
-
-/*
-  START HIGH-QUALITY CAMERA + MIC
-*/
-
-async function startTracker(){
-
-  try{
-
-    /*
-      REQUEST:
-
-      REAR CAMERA
-      HIGHER RESOLUTION
-      MICROPHONE
-    */
-
-    mediaStream =
-      await navigator.mediaDevices.getUserMedia({
-
-        video:{
-
-          facingMode:{
-            ideal:'environment'
-          },
-
-          width:{
-            ideal:1920
-          },
-
-          height:{
-            ideal:1080
-          }
-        },
-
-        audio:true
-      });
-
-
-    /*
-      CREATE OUR OWN VIDEO ELEMENT
-
-      We do NOT resize this to 480x360.
-      This is the high-quality source.
-    */
-
-    camVideo =
-      document.createElement(
-        'video'
-      );
-
-
-    camVideo.srcObject =
-      mediaStream;
-
-
-    camVideo.setAttribute(
-      'playsinline',
-      ''
-    );
-
-
-    camVideo.setAttribute(
-      'webkit-playsinline',
-      ''
-    );
-
-
-    camVideo.autoplay =
-      true;
-
-
-    /*
-      IMPORTANT
-
-      We mute playback of the camera
-      element so your microphone
-      does not feed directly back
-      through your speakers.
-
-      The microphone is still part
-      of the MediaStream.
-    */
-
-    camVideo.muted =
-      true;
-
-
-    await camVideo.play();
-
-
-    resetAnalysis();
-
-
-    trackerRunning =
-      true;
-
-
-    document.getElementById(
-      'startScreen'
-    ).style.display =
-      'none';
-
-  }
-
-  catch(error){
-
-    console.error(error);
-
-
-    document.getElementById(
-      'startText'
-    ).innerText =
-      'Camera or microphone permission was denied.';
-  }
-}
-
-
-/*
-  RESET MOTION ANALYSIS
-*/
-
-function resetAnalysis(){
-
-  prevFrame =
-    createImage(
-      analysisW,
-      analysisH
-    );
-
-
-  diffImg =
-    createImage(
-      analysisW,
-      analysisH
-    );
-
-
-  prevFrame.loadPixels();
-
-
-  for(
-    let i=0;
-    i<prevFrame.pixels.length;
-    i+=4
-  ){
-
-    prevFrame.pixels[i] =
-      0;
-
-    prevFrame.pixels[i+1] =
-      0;
-
-    prevFrame.pixels[i+2] =
-      0;
-
-    prevFrame.pixels[i+3] =
-      255;
-  }
-
-
-  prevFrame.updatePixels();
-
-
-  trackerHistory = [];
-
-  haloLayer.clear();
 }
 
 
@@ -396,9 +197,9 @@ function draw(){
 
 
   if(
-    !trackerRunning ||
-    !camVideo ||
-    camVideo.readyState < 2
+    !cam ||
+    !cam.elt ||
+    cam.elt.readyState < 2
   ){
 
     return;
@@ -406,25 +207,32 @@ function draw(){
 
 
   /*
-    HIGH-QUALITY LIVE CAMERA
-
-    This is the actual camera
-    feed you're looking at.
+    HIGH-QUALITY CAMERA DISPLAY
   */
 
-  drawCameraCover();
+  let fit =
+    getCameraCoverFit();
+
+
+  image(
+    cam,
+    fit.x,
+    fit.y,
+    fit.w,
+    fit.h
+  );
 
 
   /*
-    CREATE SMALL COPY FOR
-    COMPUTER VISION ONLY
+    MAKE SMALL COPY
+    FOR TRACKING ONLY
   */
 
   analysisLayer.clear();
 
 
   analysisLayer.image(
-    camVideo,
+    cam,
     0,
     0,
     analysisW,
@@ -499,7 +307,7 @@ function draw(){
 
 
   /*
-    FIND BLOBS
+    FIND MOTION BLOBS
   */
 
   blobs =
@@ -511,7 +319,7 @@ function draw(){
 
 
   /*
-    SOFT GOLD HALO FADE
+    GOLD HALO FADE
   */
 
   haloLayer.fill(
@@ -544,15 +352,11 @@ function draw(){
     ) / 2;
 
 
-  let fit =
-    getCameraCoverFit();
-
-
   let centers = [];
 
 
   /*
-    DRAW DETECTED MOTION
+    CREATE TRACKER CENTERS
   */
 
   for(
@@ -574,8 +378,8 @@ function draw(){
 
 
     /*
-      CONVERT ANALYSIS COORDINATES
-      INTO DISPLAY COORDINATES
+      MAP ANALYSIS POSITION
+      BACK TO DISPLAY
     */
 
     let normalizedX =
@@ -605,11 +409,12 @@ function draw(){
       x:cx,
       y:cy,
       blob:b
+
     });
 
 
     /*
-      GOLD ENERGY RING
+      GOLD HALO
     */
 
     let goldHue =
@@ -667,7 +472,7 @@ function draw(){
 
 
   /*
-    SONIC MACHINE-VISION SYSTEM
+    SONIC MACHINE VISION
   */
 
   drawConnectorLines(
@@ -707,38 +512,17 @@ function draw(){
 
 
 /*
-  HIGH-QUALITY CAMERA DISPLAY
-*/
-
-function drawCameraCover(){
-
-  let fit =
-    getCameraCoverFit();
-
-
-  image(
-    camVideo,
-    fit.x,
-    fit.y,
-    fit.w,
-    fit.h
-  );
-}
-
-
-/*
-  KEEP CAMERA ASPECT RATIO
-  WHILE FILLING PHONE SCREEN
+  CAMERA COVER FIT
 */
 
 function getCameraCoverFit(){
 
   let vw =
-    camVideo.videoWidth;
+    cam.elt.videoWidth;
 
 
   let vh =
-    camVideo.videoHeight;
+    cam.elt.videoHeight;
 
 
   if(
@@ -758,11 +542,11 @@ function getCameraCoverFit(){
 
 
   let cameraRatio =
-    vw/vh;
+    vw / vh;
 
 
   let screenRatio =
-    width/height;
+    width / height;
 
 
   let drawW;
@@ -811,7 +595,7 @@ function getCameraCoverFit(){
 
 
 /*
-  GOLD ENERGY HALO
+  GOLD HALO
 */
 
 function drawGoldHalo(
@@ -986,7 +770,7 @@ function drawGoldHalo(
 
 
 /*
-  BLUE CONNECTION LINES
+  BLUE CONNECTOR LINES
 */
 
 function drawConnectorLines(
@@ -996,6 +780,7 @@ function drawConnectorLines(
   if(
     centers.length < 2
   ){
+
     return;
   }
 
@@ -1091,7 +876,7 @@ function drawConnectorLines(
 
 
 /*
-  MOTION HISTORY
+  TRACKER HISTORY
 */
 
 function updateTrackerHistory(
@@ -1105,6 +890,7 @@ function updateTrackerHistory(
 
         x:p.x,
         y:p.y
+
       })
     )
   );
@@ -1120,7 +906,7 @@ function updateTrackerHistory(
 
 
 /*
-  BLUE MOTION TAIL
+  BLUE MOTION TAILS
 */
 
 function drawMotionTails(){
@@ -1200,7 +986,7 @@ function drawMotionTails(){
 
 
 /*
-  MACHINE-VISION TRACKER
+  MACHINE-VISION TRACKERS
 */
 
 function drawTrackers(
@@ -1295,68 +1081,17 @@ function drawTrackers(
     );
 
 
-    line(
-      cx-half,
-      cy-half,
-      cx-half+corner,
-      cy-half
-    );
+    line(cx-half,cy-half,cx-half+corner,cy-half);
+    line(cx-half,cy-half,cx-half,cy-half+corner);
 
+    line(cx+half,cy-half,cx+half-corner,cy-half);
+    line(cx+half,cy-half,cx+half,cy-half+corner);
 
-    line(
-      cx-half,
-      cy-half,
-      cx-half,
-      cy-half+corner
-    );
+    line(cx-half,cy+half,cx-half+corner,cy+half);
+    line(cx-half,cy+half,cx-half,cy+half-corner);
 
-
-    line(
-      cx+half,
-      cy-half,
-      cx+half-corner,
-      cy-half
-    );
-
-
-    line(
-      cx+half,
-      cy-half,
-      cx+half,
-      cy-half+corner
-    );
-
-
-    line(
-      cx-half,
-      cy+half,
-      cx-half+corner,
-      cy+half
-    );
-
-
-    line(
-      cx-half,
-      cy+half,
-      cx-half,
-      cy+half-corner
-    );
-
-
-    line(
-      cx+half,
-      cy+half,
-      cx+half-corner,
-      cy+half
-    );
-
-
-    line(
-      cx+half,
-      cy+half,
-      cx+half,
-      cy+half-corner
-    );
+    line(cx+half,cy+half,cx+half-corner,cy+half);
+    line(cx+half,cy+half,cx+half,cy+half-corner);
 
 
     /*
@@ -1476,7 +1211,7 @@ function drawTrackers(
 
 
     /*
-      COORDINATES ONLY
+      COORDINATES
     */
 
     let label =
@@ -1500,7 +1235,8 @@ function drawTrackers(
 
 
     let labelWidth =
-      textWidth(label)+20;
+      textWidth(label) +
+      20;
 
 
     let labelHeight =
@@ -1512,7 +1248,7 @@ function drawTrackers(
 
 
     /*
-      DARK LABEL PANEL
+      DARK LABEL
     */
 
     noStroke();
@@ -1529,16 +1265,14 @@ function drawTrackers(
     rect(
       cx-labelWidth/2,
       labelY-labelHeight/2,
-
       labelWidth,
       labelHeight,
-
       3
     );
 
 
     /*
-      BLUE PANEL BORDER
+      BLUE LABEL BORDER
     */
 
     noFill();
@@ -1560,10 +1294,8 @@ function drawTrackers(
     rect(
       cx-labelWidth/2,
       labelY-labelHeight/2,
-
       labelWidth,
       labelHeight,
-
       3
     );
 
@@ -1611,7 +1343,8 @@ function findBlobs(
   img.loadPixels();
 
 
-  let found = [];
+  let found =
+    [];
 
 
   for(
@@ -1785,6 +1518,7 @@ function flood(
       [cx-1,cy],
       [cx,cy+1],
       [cx,cy-1]
+
     );
   }
 
@@ -1833,7 +1567,8 @@ function windowResized(){
   haloLayer.clear();
 
 
-  trackerHistory = [];
+  trackerHistory =
+    [];
 }
 
 </script>

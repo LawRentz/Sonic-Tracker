@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
 <title>Sonic Tracker</title>
 
 <style>
   html,body{
     margin:0;
+    width:100%;
     height:100%;
     background:#000;
     overflow:hidden;
@@ -16,6 +17,44 @@
   canvas{
     display:block;
   }
+
+  #startScreen{
+    position:fixed;
+    inset:0;
+    z-index:1000;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+
+    background:#000;
+    color:#fff;
+
+    font-family:Arial,sans-serif;
+  }
+
+  #startButton{
+    padding:15px 22px;
+
+    border:2px solid white;
+    border-radius:12px;
+
+    background:#1357ff;
+    color:#fff;
+
+    font-size:17px;
+    font-weight:bold;
+  }
+
+  #startText{
+    margin-bottom:18px;
+
+    font-family:monospace;
+    font-size:14px;
+
+    opacity:0.8;
+  }
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
@@ -23,35 +62,84 @@
 
 <body>
 
+<div id="startScreen">
+
+  <div id="startText">
+    SONIC TRACKER
+  </div>
+
+  <button id="startButton">
+    START TRACKER
+  </button>
+
+</div>
+
 <script>
 
-let cam;
+let camVideo;
+let mediaStream;
+
+let analysisLayer;
+let analysisFrame;
 let prevFrame;
 let diffImg;
+
 let haloLayer;
+
+let trackerRunning = false;
+
+
+/*
+  MOTION SETTINGS
+*/
 
 let motionThreshold = 45;
 let minBlobPixels = 500;
 
+
+/*
+  ANALYSIS RESOLUTION
+
+  IMPORTANT:
+  This stays small for performance.
+
+  The actual camera displayed
+  underneath remains high quality.
+*/
+
+let analysisW = 480;
+let analysisH = 360;
+
+
+/*
+  TRACKER DATA
+*/
+
 let blobs = [];
 let trackerHistory = [];
 
-/*
-  SONIC TRACKER COLOR SYSTEM
 
-  GOLD = ENERGY HALO
-  ELECTRIC / ROYAL BLUE = MACHINE VISION
-  WHITE = DATA / STRUCTURAL DETAILS
+/*
+  SONIC COLORS
 */
 
 let sonicBlue = 225;
 let sonicGold = 48;
 
+
+/*
+  P5 SETUP
+*/
+
 function setup(){
 
-  createCanvas(windowWidth, windowHeight);
+  createCanvas(
+    windowWidth,
+    windowHeight
+  );
 
   pixelDensity(1);
+
   frameRate(60);
 
   colorMode(
@@ -62,29 +150,42 @@ function setup(){
     100
   );
 
-  cam = createCapture({
-    video:{
-      facingMode:{
-        ideal:"environment"
-      }
-    },
-    audio:false
-  });
 
-  cam.size(480,360);
-  cam.hide();
+  /*
+    INVISIBLE ANALYSIS CANVAS
+  */
+
+  analysisLayer =
+    createGraphics(
+      analysisW,
+      analysisH
+    );
+
+  analysisLayer.pixelDensity(1);
+
+
+  analysisFrame =
+    createImage(
+      analysisW,
+      analysisH
+    );
 
   prevFrame =
     createImage(
-      cam.width,
-      cam.height
+      analysisW,
+      analysisH
     );
 
   diffImg =
     createImage(
-      cam.width,
-      cam.height
+      analysisW,
+      analysisH
     );
+
+
+  /*
+    HALO LAYER
+  */
 
   haloLayer =
     createGraphics(
@@ -102,243 +203,615 @@ function setup(){
 
   haloLayer.clear();
 
+
   textFont('monospace');
   textStyle(BOLD);
+
+
+  document.getElementById(
+    'startButton'
+  ).addEventListener(
+    'click',
+    startTracker
+  );
 }
+
+
+/*
+  START HIGH-QUALITY CAMERA + MIC
+*/
+
+async function startTracker(){
+
+  try{
+
+    /*
+      REQUEST:
+
+      REAR CAMERA
+      HIGHER RESOLUTION
+      MICROPHONE
+    */
+
+    mediaStream =
+      await navigator.mediaDevices.getUserMedia({
+
+        video:{
+
+          facingMode:{
+            ideal:'environment'
+          },
+
+          width:{
+            ideal:1920
+          },
+
+          height:{
+            ideal:1080
+          }
+        },
+
+        audio:true
+      });
+
+
+    /*
+      CREATE OUR OWN VIDEO ELEMENT
+
+      We do NOT resize this to 480x360.
+      This is the high-quality source.
+    */
+
+    camVideo =
+      document.createElement(
+        'video'
+      );
+
+
+    camVideo.srcObject =
+      mediaStream;
+
+
+    camVideo.setAttribute(
+      'playsinline',
+      ''
+    );
+
+
+    camVideo.setAttribute(
+      'webkit-playsinline',
+      ''
+    );
+
+
+    camVideo.autoplay =
+      true;
+
+
+    /*
+      IMPORTANT
+
+      We mute playback of the camera
+      element so your microphone
+      does not feed directly back
+      through your speakers.
+
+      The microphone is still part
+      of the MediaStream.
+    */
+
+    camVideo.muted =
+      true;
+
+
+    await camVideo.play();
+
+
+    resetAnalysis();
+
+
+    trackerRunning =
+      true;
+
+
+    document.getElementById(
+      'startScreen'
+    ).style.display =
+      'none';
+
+  }
+
+  catch(error){
+
+    console.error(error);
+
+
+    document.getElementById(
+      'startText'
+    ).innerText =
+      'Camera or microphone permission was denied.';
+  }
+}
+
+
+/*
+  RESET MOTION ANALYSIS
+*/
+
+function resetAnalysis(){
+
+  prevFrame =
+    createImage(
+      analysisW,
+      analysisH
+    );
+
+
+  diffImg =
+    createImage(
+      analysisW,
+      analysisH
+    );
+
+
+  prevFrame.loadPixels();
+
+
+  for(
+    let i=0;
+    i<prevFrame.pixels.length;
+    i+=4
+  ){
+
+    prevFrame.pixels[i] =
+      0;
+
+    prevFrame.pixels[i+1] =
+      0;
+
+    prevFrame.pixels[i+2] =
+      0;
+
+    prevFrame.pixels[i+3] =
+      255;
+  }
+
+
+  prevFrame.updatePixels();
+
+
+  trackerHistory = [];
+
+  haloLayer.clear();
+}
+
+
+/*
+  MAIN LOOP
+*/
 
 function draw(){
 
   background(0);
 
-  blobs = [];
-
-  cam.loadPixels();
-  prevFrame.loadPixels();
 
   if(
-    cam.pixels.length > 0 &&
-    prevFrame.pixels.length > 0
+    !trackerRunning ||
+    !camVideo ||
+    camVideo.readyState < 2
   ){
 
-    diffImg.loadPixels();
+    return;
+  }
 
-    for(
-      let i = 0;
-      i < cam.pixels.length;
-      i += 4
-    ){
 
-      let d = dist(
+  /*
+    HIGH-QUALITY LIVE CAMERA
 
-        cam.pixels[i],
-        cam.pixels[i+1],
-        cam.pixels[i+2],
+    This is the actual camera
+    feed you're looking at.
+  */
+
+  drawCameraCover();
+
+
+  /*
+    CREATE SMALL COPY FOR
+    COMPUTER VISION ONLY
+  */
+
+  analysisLayer.clear();
+
+
+  analysisLayer.image(
+    camVideo,
+    0,
+    0,
+    analysisW,
+    analysisH
+  );
+
+
+  analysisFrame =
+    analysisLayer.get();
+
+
+  analysisFrame.loadPixels();
+  prevFrame.loadPixels();
+
+
+  if(
+    analysisFrame.pixels.length === 0 ||
+    prevFrame.pixels.length === 0
+  ){
+
+    return;
+  }
+
+
+  diffImg.loadPixels();
+
+
+  /*
+    FRAME DIFFERENCE
+  */
+
+  for(
+    let i=0;
+    i<analysisFrame.pixels.length;
+    i+=4
+  ){
+
+    let d =
+      dist(
+
+        analysisFrame.pixels[i],
+        analysisFrame.pixels[i+1],
+        analysisFrame.pixels[i+2],
 
         prevFrame.pixels[i],
         prevFrame.pixels[i+1],
         prevFrame.pixels[i+2]
       );
 
-      let v =
-        d > motionThreshold
-        ? 255
-        : 0;
 
-      diffImg.pixels[i]   = v;
-      diffImg.pixels[i+1] = v;
-      diffImg.pixels[i+2] = v;
-      diffImg.pixels[i+3] = 255;
-    }
-
-    diffImg.updatePixels();
+    let v =
+      d > motionThreshold
+      ? 255
+      : 0;
 
 
-    /*
-      REAL CAMERA
-    */
+    diffImg.pixels[i] =
+      v;
 
-    image(
-      cam,
-      0,
-      0,
-      width,
-      height
+    diffImg.pixels[i+1] =
+      v;
+
+    diffImg.pixels[i+2] =
+      v;
+
+    diffImg.pixels[i+3] =
+      255;
+  }
+
+
+  diffImg.updatePixels();
+
+
+  /*
+    FIND BLOBS
+  */
+
+  blobs =
+    findBlobs(
+      diffImg,
+      analysisW,
+      analysisH
     );
 
 
+  /*
+    SOFT GOLD HALO FADE
+  */
+
+  haloLayer.fill(
+    0,
+    0,
+    0,
+    62
+  );
+
+  haloLayer.noStroke();
+
+
+  haloLayer.rect(
+    0,
+    0,
+    width,
+    height
+  );
+
+
+  let t =
+    millis()/1000;
+
+
+  let pulse =
+    (
+      sin(
+        t*1.2
+      ) + 1
+    ) / 2;
+
+
+  let fit =
+    getCameraCoverFit();
+
+
+  let centers = [];
+
+
+  /*
+    DRAW DETECTED MOTION
+  */
+
+  for(
+    let b of blobs
+  ){
+
+    let bx =
+      (
+        b.minX +
+        b.maxX
+      ) / 2;
+
+
+    let by =
+      (
+        b.minY +
+        b.maxY
+      ) / 2;
+
+
     /*
-      FIND MOTION BLOBS
+      CONVERT ANALYSIS COORDINATES
+      INTO DISPLAY COORDINATES
     */
 
-    blobs =
-      findBlobs(
-        diffImg,
-        cam.width,
-        cam.height
-      );
+    let normalizedX =
+      bx /
+      analysisW;
+
+
+    let normalizedY =
+      by /
+      analysisH;
+
+
+    let cx =
+      fit.x +
+      normalizedX *
+      fit.w;
+
+
+    let cy =
+      fit.y +
+      normalizedY *
+      fit.h;
+
+
+    centers.push({
+
+      x:cx,
+      y:cy,
+      blob:b
+    });
 
 
     /*
-      HALO TRAIL FADE
+      GOLD ENERGY RING
     */
 
-    haloLayer.fill(
-      0,
-      0,
-      0,
-      62
-    );
-
-    haloLayer.noStroke();
-
-    haloLayer.rect(
-      0,
-      0,
-      width,
-      height
-    );
+    let goldHue =
+      sonicGold +
+      sin(
+        t*0.7 +
+        bx*0.04
+      ) * 6;
 
 
-    let t =
-      millis()/1000;
-
-    let pulse =
-      (sin(t * 1.2) + 1) / 2;
-
-    let centers = [];
-
-
-    for(
-      let i = 0;
-      i < blobs.length;
-      i++
-    ){
-
-      let b =
-        blobs[i];
-
-      let cx = map(
-        (b.minX + b.maxX)/2,
-        0,
-        cam.width,
-        0,
-        width
+    let haloSize =
+      map(
+        b.count,
+        minBlobPixels,
+        3000,
+        43,
+        100
       );
 
-      let cy = map(
-        (b.minY + b.maxY)/2,
-        0,
-        cam.height,
-        0,
-        height
-      );
 
-      centers.push({
-        x:cx,
-        y:cy
-      });
-
-
-      /*
-        GOLD COLOR MOVEMENT
-
-        Keeps the halo inside a
-        tight yellow / gold range.
-      */
-
-      let goldHue =
-        sonicGold +
-        sin(
-          t * 0.7 +
-          b.minX * 0.04
-        ) * 6;
-
-
-      /*
-        HALO SIZE
-      */
-
-      let haloSize =
-        map(
-          b.count,
-          minBlobPixels,
-          3000,
-          43,
-          100
-        );
-
-      haloSize =
-        constrain(
-          haloSize,
-          43,
-          100
-        );
-
-
-      drawGoldHalo(
-        haloLayer,
-        cx,
-        cy,
+    haloSize =
+      constrain(
         haloSize,
-        goldHue,
-        pulse
+        43,
+        100
       );
-    }
 
 
-    /*
-      SOFT ADDITIVE GOLD GLOW
-    */
-
-    blendMode(ADD);
-
-    image(
+    drawGoldHalo(
       haloLayer,
-      0,
-      0
-    );
-
-    blendMode(BLEND);
-
-
-    /*
-      ELECTRIC BLUE MACHINE VISION
-    */
-
-    drawConnectorLines(
-      centers
-    );
-
-    updateTrackerHistory(
-      centers
-    );
-
-    drawMotionTails();
-
-    drawTrackers();
-
-
-    /*
-      STORE CURRENT FRAME
-    */
-
-    prevFrame.copy(
-      cam,
-      0,
-      0,
-      cam.width,
-      cam.height,
-      0,
-      0,
-      cam.width,
-      cam.height
+      cx,
+      cy,
+      haloSize,
+      goldHue,
+      pulse
     );
   }
+
+
+  /*
+    GOLD GLOW
+  */
+
+  blendMode(ADD);
+
+
+  image(
+    haloLayer,
+    0,
+    0
+  );
+
+
+  blendMode(BLEND);
+
+
+  /*
+    SONIC MACHINE-VISION SYSTEM
+  */
+
+  drawConnectorLines(
+    centers
+  );
+
+
+  updateTrackerHistory(
+    centers
+  );
+
+
+  drawMotionTails();
+
+
+  drawTrackers(
+    centers
+  );
+
+
+  /*
+    SAVE CURRENT ANALYSIS FRAME
+  */
+
+  prevFrame.copy(
+    analysisFrame,
+    0,
+    0,
+    analysisW,
+    analysisH,
+    0,
+    0,
+    analysisW,
+    analysisH
+  );
 }
 
 
 /*
-  SOFT GOLD ENERGY HALO
+  HIGH-QUALITY CAMERA DISPLAY
+*/
+
+function drawCameraCover(){
+
+  let fit =
+    getCameraCoverFit();
+
+
+  image(
+    camVideo,
+    fit.x,
+    fit.y,
+    fit.w,
+    fit.h
+  );
+}
+
+
+/*
+  KEEP CAMERA ASPECT RATIO
+  WHILE FILLING PHONE SCREEN
+*/
+
+function getCameraCoverFit(){
+
+  let vw =
+    camVideo.videoWidth;
+
+
+  let vh =
+    camVideo.videoHeight;
+
+
+  if(
+    !vw ||
+    !vh
+  ){
+
+    return{
+
+      x:0,
+      y:0,
+
+      w:width,
+      h:height
+    };
+  }
+
+
+  let cameraRatio =
+    vw/vh;
+
+
+  let screenRatio =
+    width/height;
+
+
+  let drawW;
+  let drawH;
+
+
+  if(
+    screenRatio >
+    cameraRatio
+  ){
+
+    drawW =
+      width;
+
+
+    drawH =
+      width /
+      cameraRatio;
+
+  }
+
+  else{
+
+    drawH =
+      height;
+
+
+    drawW =
+      height *
+      cameraRatio;
+  }
+
+
+  return{
+
+    x:
+      (width-drawW)/2,
+
+    y:
+      (height-drawH)/2,
+
+    w:drawW,
+    h:drawH
+  };
+}
+
+
+/*
+  GOLD ENERGY HALO
 */
 
 function drawGoldHalo(
@@ -352,20 +825,18 @@ function drawGoldHalo(
 
   layer.push();
 
+
   layer.translate(
     x,
     y
   );
 
+
   layer.noFill();
 
 
   /*
-    VERY SOFT OUTER GLOW
-
-    This used to be much stronger.
-    Lower alpha makes the gold
-    feel luminous instead of solid.
+    SOFT OUTER GLOW
   */
 
   layer.stroke(
@@ -375,17 +846,21 @@ function drawGoldHalo(
     8
   );
 
-  layer.strokeWeight(16);
+
+  layer.strokeWeight(
+    16
+  );
+
 
   layer.circle(
     0,
     0,
-    r * 2.08
+    r*2.08
   );
 
 
   /*
-    SECOND SOFT GLOW
+    SECOND GLOW
   */
 
   layer.stroke(
@@ -395,24 +870,26 @@ function drawGoldHalo(
     13
   );
 
-  layer.strokeWeight(8);
+
+  layer.strokeWeight(
+    8
+  );
+
 
   layer.circle(
     0,
     0,
-    r * 2.03
+    r*2.03
   );
 
 
   /*
-    MAIN GOLD RINGS
-
-    More transparent than before.
+    GOLD RINGS
   */
 
   for(
-    let i = 0;
-    i < 3;
+    let i=0;
+    i<3;
     i++
   ){
 
@@ -425,12 +902,14 @@ function drawGoldHalo(
         16
       );
 
+
     layer.stroke(
       goldHue,
       92,
       100,
       alpha
     );
+
 
     layer.strokeWeight(
       map(
@@ -442,6 +921,7 @@ function drawGoldHalo(
       )
     );
 
+
     let ringSize =
       r *
       (
@@ -450,25 +930,28 @@ function drawGoldHalo(
         pulse
       );
 
+
     layer.circle(
       0,
       0,
-      ringSize * 2
+      ringSize*2
     );
+
 
     r *= 0.86;
   }
 
 
   /*
-    SUBTLE GOLD PARTICLES
+    GOLD PARTICLES
   */
 
   layer.noStroke();
 
+
   for(
-    let i = 0;
-    i < 8;
+    let i=0;
+    i<8;
     i++
   ){
 
@@ -477,16 +960,10 @@ function drawGoldHalo(
       i/8 +
       millis()/2500;
 
+
     let orbit =
-      r * 1.48;
+      r*1.48;
 
-    let px =
-      cos(a) *
-      orbit;
-
-    let py =
-      sin(a) *
-      orbit;
 
     layer.fill(
       goldHue,
@@ -495,9 +972,10 @@ function drawGoldHalo(
       30
     );
 
+
     layer.circle(
-      px,
-      py,
+      cos(a)*orbit,
+      sin(a)*orbit,
       2.5
     );
   }
@@ -508,7 +986,7 @@ function drawGoldHalo(
 
 
 /*
-  ELECTRIC BLUE CONNECTION NETWORK
+  BLUE CONNECTION LINES
 */
 
 function drawConnectorLines(
@@ -521,25 +999,30 @@ function drawConnectorLines(
     return;
   }
 
+
   stroke(
     sonicBlue,
     95,
     100,
-    90
+    82
   );
 
-  strokeWeight(3);
+
+  strokeWeight(
+    3
+  );
 
 
   for(
-    let i = 0;
-    i < centers.length - 1;
+    let i=0;
+    i<centers.length-1;
     i++
   ){
 
     line(
       centers[i].x,
       centers[i].y,
+
       centers[i+1].x,
       centers[i+1].y
     );
@@ -551,6 +1034,7 @@ function drawConnectorLines(
         centers[i+1].x
       ) / 2;
 
+
     let my =
       (
         centers[i].y +
@@ -558,11 +1042,8 @@ function drawConnectorLines(
       ) / 2;
 
 
-    /*
-      BLUE CONNECTION NODE
-    */
-
     noStroke();
+
 
     fill(
       sonicBlue,
@@ -571,6 +1052,7 @@ function drawConnectorLines(
       100
     );
 
+
     circle(
       mx,
       my,
@@ -578,16 +1060,13 @@ function drawConnectorLines(
     );
 
 
-    /*
-      WHITE NODE CENTER
-    */
-
     fill(
       0,
       0,
       100,
       100
     );
+
 
     circle(
       mx,
@@ -600,16 +1079,19 @@ function drawConnectorLines(
       sonicBlue,
       95,
       100,
-      90
+      82
     );
 
-    strokeWeight(3);
+
+    strokeWeight(
+      3
+    );
   }
 }
 
 
 /*
-  TRACKER HISTORY
+  MOTION HISTORY
 */
 
 function updateTrackerHistory(
@@ -617,24 +1099,28 @@ function updateTrackerHistory(
 ){
 
   trackerHistory.push(
+
     centers.map(
       p => ({
+
         x:p.x,
         y:p.y
       })
     )
   );
 
+
   if(
     trackerHistory.length > 7
   ){
+
     trackerHistory.shift();
   }
 }
 
 
 /*
-  ELECTRIC BLUE MOTION TRAILS
+  BLUE MOTION TAIL
 */
 
 function drawMotionTails(){
@@ -642,35 +1128,32 @@ function drawMotionTails(){
   if(
     trackerHistory.length < 2
   ){
+
     return;
   }
 
 
   for(
-    let frame = 1;
-    frame < trackerHistory.length;
-    frame++
+    let h=1;
+    h<trackerHistory.length;
+    h++
   ){
 
     let previous =
       trackerHistory[
-        frame - 1
+        h-1
       ];
+
 
     let current =
       trackerHistory[
-        frame
+        h
       ];
 
-    let count =
-      min(
-        previous.length,
-        current.length
-      );
 
     let alpha =
       map(
-        frame,
+        h,
         1,
         trackerHistory.length-1,
         15,
@@ -680,23 +1163,34 @@ function drawMotionTails(){
 
     stroke(
       sonicBlue,
-      95,
+      100,
       100,
       alpha
     );
 
-    strokeWeight(2.5);
+
+    strokeWeight(
+      2.5
+    );
+
+
+    let count =
+      min(
+        previous.length,
+        current.length
+      );
 
 
     for(
-      let i = 0;
-      i < count;
+      let i=0;
+      i<count;
       i++
     ){
 
       line(
         previous[i].x,
         previous[i].y,
+
         current[i].x,
         current[i].y
       );
@@ -706,32 +1200,27 @@ function drawMotionTails(){
 
 
 /*
-  MACHINE-VISION TRACKERS
+  MACHINE-VISION TRACKER
 */
 
-function drawTrackers(){
+function drawTrackers(
+  centers
+){
 
   for(
-    let b of blobs
+    let p of centers
   ){
 
+    let b =
+      p.blob;
+
+
     let cx =
-      map(
-        (b.minX + b.maxX)/2,
-        0,
-        cam.width,
-        0,
-        width
-      );
+      p.x;
+
 
     let cy =
-      map(
-        (b.minY + b.maxY)/2,
-        0,
-        cam.height,
-        0,
-        height
-      );
+      p.y;
 
 
     let side =
@@ -743,6 +1232,7 @@ function drawTrackers(){
         185
       );
 
+
     side =
       constrain(
         side,
@@ -750,12 +1240,13 @@ function drawTrackers(){
         185
       );
 
+
     let half =
       side/2;
 
 
     /*
-      ELECTRIC / ROYAL BLUE BOX
+      SONIC BLUE BOX
     */
 
     stroke(
@@ -765,9 +1256,14 @@ function drawTrackers(){
       100
     );
 
-    strokeWeight(3.5);
+
+    strokeWeight(
+      3.5
+    );
+
 
     noFill();
+
 
     rect(
       cx-half,
@@ -785,6 +1281,7 @@ function drawTrackers(){
     let corner =
       19;
 
+
     stroke(
       0,
       0,
@@ -792,10 +1289,11 @@ function drawTrackers(){
       100
     );
 
-    strokeWeight(4);
 
+    strokeWeight(
+      4
+    );
 
-    // TOP LEFT
 
     line(
       cx-half,
@@ -804,6 +1302,7 @@ function drawTrackers(){
       cy-half
     );
 
+
     line(
       cx-half,
       cy-half,
@@ -811,8 +1310,6 @@ function drawTrackers(){
       cy-half+corner
     );
 
-
-    // TOP RIGHT
 
     line(
       cx+half,
@@ -821,6 +1318,7 @@ function drawTrackers(){
       cy-half
     );
 
+
     line(
       cx+half,
       cy-half,
@@ -829,14 +1327,13 @@ function drawTrackers(){
     );
 
 
-    // BOTTOM LEFT
-
     line(
       cx-half,
       cy+half,
       cx-half+corner,
       cy+half
     );
+
 
     line(
       cx-half,
@@ -846,14 +1343,13 @@ function drawTrackers(){
     );
 
 
-    // BOTTOM RIGHT
-
     line(
       cx+half,
       cy+half,
       cx+half-corner,
       cy+half
     );
+
 
     line(
       cx+half,
@@ -864,7 +1360,7 @@ function drawTrackers(){
 
 
     /*
-      ELECTRIC BLUE CROSSHAIR
+      BLUE CROSSHAIR
     */
 
     stroke(
@@ -874,7 +1370,11 @@ function drawTrackers(){
       100
     );
 
-    strokeWeight(3);
+
+    strokeWeight(
+      3
+    );
+
 
     line(
       cx-19,
@@ -882,6 +1382,7 @@ function drawTrackers(){
       cx+19,
       cy
     );
+
 
     line(
       cx,
@@ -897,6 +1398,7 @@ function drawTrackers(){
 
     noFill();
 
+
     stroke(
       0,
       0,
@@ -904,7 +1406,11 @@ function drawTrackers(){
       100
     );
 
-    strokeWeight(2.5);
+
+    strokeWeight(
+      2.5
+    );
+
 
     circle(
       cx,
@@ -919,12 +1425,14 @@ function drawTrackers(){
 
     noStroke();
 
+
     fill(
       sonicGold,
       100,
       100,
       100
     );
+
 
     circle(
       cx,
@@ -934,7 +1442,7 @@ function drawTrackers(){
 
 
     /*
-      THICK ELECTRIC BLUE SCAN LINE
+      THICK BLUE SCAN LINE
     */
 
     stroke(
@@ -944,7 +1452,11 @@ function drawTrackers(){
       100
     );
 
-    strokeWeight(4);
+
+    strokeWeight(
+      4
+    );
+
 
     let scanY =
       cy +
@@ -953,6 +1465,7 @@ function drawTrackers(){
       ) *
       half *
       0.65;
+
 
     line(
       cx-half+10,
@@ -969,30 +1482,41 @@ function drawTrackers(){
     let label =
       `(${int(cx)}, ${int(cy)})`;
 
+
     textAlign(
       CENTER,
       CENTER
     );
 
-    textSize(20);
 
-    textStyle(BOLD);
+    textSize(
+      20
+    );
+
+
+    textStyle(
+      BOLD
+    );
+
 
     let labelWidth =
-      textWidth(label) + 20;
+      textWidth(label)+20;
+
 
     let labelHeight =
       30;
+
 
     let labelY =
       cy-half-28;
 
 
     /*
-      DARK COORDINATE PANEL
+      DARK LABEL PANEL
     */
 
     noStroke();
+
 
     fill(
       0,
@@ -1001,20 +1525,24 @@ function drawTrackers(){
       80
     );
 
+
     rect(
       cx-labelWidth/2,
       labelY-labelHeight/2,
+
       labelWidth,
       labelHeight,
+
       3
     );
 
 
     /*
-      ELECTRIC BLUE PANEL BORDER
+      BLUE PANEL BORDER
     */
 
     noFill();
+
 
     stroke(
       sonicBlue,
@@ -1023,13 +1551,19 @@ function drawTrackers(){
       100
     );
 
-    strokeWeight(2);
+
+    strokeWeight(
+      2
+    );
+
 
     rect(
       cx-labelWidth/2,
       labelY-labelHeight/2,
+
       labelWidth,
       labelHeight,
+
       3
     );
 
@@ -1040,12 +1574,14 @@ function drawTrackers(){
 
     noStroke();
 
+
     fill(
       0,
       0,
       100,
       100
     );
+
 
     text(
       label,
@@ -1057,7 +1593,7 @@ function drawTrackers(){
 
 
 /*
-  BLOB DETECTION
+  FIND BLOBS
 */
 
 function findBlobs(
@@ -1071,25 +1607,29 @@ function findBlobs(
       w*h
     );
 
+
   img.loadPixels();
+
 
   let found = [];
 
 
   for(
-    let y = 0;
-    y < h;
+    let y=0;
+    y<h;
     y++
   ){
 
     for(
-      let x = 0;
-      x < w;
+      let x=0;
+      x<w;
       x++
     ){
 
       let idx =
-        x+y*w;
+        x +
+        y*w;
+
 
       let p =
         img.pixels[
@@ -1098,7 +1638,7 @@ function findBlobs(
 
 
       if(
-        p > 128 &&
+        p>128 &&
         !visited[idx]
       ){
 
@@ -1117,11 +1657,15 @@ function findBlobs(
           b.count >
           minBlobPixels
         ){
-          found.push(b);
+
+          found.push(
+            b
+          );
         }
       }
     }
   }
+
 
   return found;
 }
@@ -1143,13 +1687,14 @@ function flood(
   let st =
     [[x,y]];
 
-  let minX = x;
-  let maxX = x;
 
-  let minY = y;
-  let maxY = y;
+  let minX=x;
+  let maxX=x;
 
-  let c = 0;
+  let minY=y;
+  let maxY=y;
+
+  let c=0;
 
 
   while(
@@ -1164,22 +1709,25 @@ function flood(
 
 
     if(
-      cx < 0 ||
-      cy < 0 ||
-      cx >= w ||
-      cy >= h
+      cx<0 ||
+      cy<0 ||
+      cx>=w ||
+      cy>=h
     ){
+
       continue;
     }
 
 
     let idx =
-      cx+cy*w;
+      cx +
+      cy*w;
 
 
     if(
       vis[idx]
     ){
+
       continue;
     }
 
@@ -1191,11 +1739,14 @@ function flood(
     if(
       img.pixels[p] <= 128
     ){
+
       continue;
     }
 
 
-    vis[idx] = 1;
+    vis[idx] =
+      1;
+
 
     c++;
 
@@ -1206,17 +1757,20 @@ function flood(
         cx
       );
 
+
     maxX =
       max(
         maxX,
         cx
       );
 
+
     minY =
       min(
         minY,
         cy
       );
+
 
     maxY =
       max(
@@ -1226,6 +1780,7 @@ function flood(
 
 
     st.push(
+
       [cx+1,cy],
       [cx-1,cy],
       [cx,cy+1],
@@ -1234,18 +1789,21 @@ function flood(
   }
 
 
-  return {
+  return{
+
     minX,
     maxX,
+
     minY,
     maxY,
+
     count:c
   };
 }
 
 
 /*
-  PHONE ROTATION / RESIZE
+  ROTATION / RESIZE
 */
 
 function windowResized(){
@@ -1255,22 +1813,25 @@ function windowResized(){
     windowHeight
   );
 
+
   haloLayer =
     createGraphics(
       width,
       height
     );
 
+
   haloLayer.colorMode(
     HSB,
     360,
     100,
     100,
-    100,
     100
   );
 
+
   haloLayer.clear();
+
 
   trackerHistory = [];
 }
